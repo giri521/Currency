@@ -1,8 +1,6 @@
+# requirements.txt
 Flask==3.0.3
-gunicorn==21.2.0
-numpy==1.27.0
-opencv-python==4.8.1.78
-easyocr==1.6.0
-python-dotenv==1.0.0
-requests==2.32.0
-Pillow==10.0.0
+requests==2.32.3
+Pillow==10.3.0
+python-dotenv==1.0.1
+gunicorn
