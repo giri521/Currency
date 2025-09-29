@@ -1,6 +1,9 @@
 # requirements.txt
-Flask==3.0.3
-requests==2.32.3
-Pillow           <-- Use unconstrained or the latest known version (e.g., Pillow>=10.4.0 if available)
-python-dotenv==1.0.1
+Flask
 gunicorn
+requests  # Needed for Perplexity API 
+Pillow>=10.4.0 # Or just 'Pillow' to get the latest stable version
+python-dotenv
+# Use EITHER of the following lines, not both:
+# Perplexity version:
+perplexity-ai
