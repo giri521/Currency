@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: currency-identifier
+    env: python
+    plan: free
+    region: oregon   # Choose your region
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app"
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PERPLEXITY_API_KEY
+        fromDatabase: false  # Or leave false to set secret manually
