@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perplexity Auto Currency Detector</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 10px; background-color: #f4f7f9; }
+        .container { max-width: 700px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
+        h1 { text-align: center; color: #1e88e5; margin-bottom: 5px;}
+        .video-container { 
+            position: relative; 
+            width: 100%; 
+            max-width: 640px; 
+            margin: 10px auto;
+            border: 4px solid var(--status-color, #aaa);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.5s ease-in-out;
+        }
+        video { width: 100%; display: block; }
+        canvas { display: none; }
+        
+        /* The Animated Status Display */
+        #status-bar {
+            height: 40px;
+            text-align: center;
+            line-height: 40px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: white;
+            background-color: var(--status-color, #333);
+            transition: background-color 0.5s ease-in-out;
+            border-radius: 0 0 8px 8px;
+            margin: -4px; /* Adjust to cover border */
+        }
+        
+        .result-text {
+            text-align: center;
+            padding: 15px;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+            min-height: 50px;
+        }
+
+        /* Animation Keyframes (Pulsing Green for Pass) */
+        @keyframes pulse-success {
+            0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+        }
+
+        .video-container.validated {
+            border-color: #28a745; /* Green */
+            animation: pulse-success 1.5s infinite;
+        }
+        .video-container.analyzing {
+             border-color: #ffc107; /* Yellow */
+        }
+        .video-container.error {
+             border-color: #dc3545; /* Red */
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💵 Perplexity Note Detector (Paid API)</h1>
+        <p style="text-align: center; font-style: italic; color: #e90000; font-weight: bold;">⚠️ WARNING: This uses the PAID Perplexity API. You will be charged per request.</p>
+
+        <div id="videoContainer" class="video-container analyzing">
+            <video id="video" autoplay playsinline></video>
+            <div id="status-bar">Awaiting camera permission...</div>
+        </div>
+
+        <canvas id="canvas"></canvas>
+
+        <div class="result-text">
+            <span id="finalResult">Point the camera at an Indian banknote to start.</span>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const statusBar = document.getElementById('status-bar');
+        const finalResult = document.getElementById('finalResult');
+        const videoContainer = document.getElementById('videoContainer');
+        
+        let isAnalyzing = false;
+        let lastSpeechText = ""; // Track the last spoken text
+        const CAPTURE_INTERVAL_MS = 1500; // Analyze frame every 1.5 seconds
+
+        // --- 1. CAMERA SETUP ---
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = stream;
+                statusBar.textContent = 'Camera active. Analyzing...';
+                videoContainer.classList.add('analyzing');
+            } catch (err) {
+                console.error("Could not access camera: ", err);
+                statusBar.textContent = 'ERROR: Could not access camera.';
+                videoContainer.classList.remove('analyzing');
+                videoContainer.classList.add('error');
+            }
+        }
+
+        // --- 2. IMAGE CAPTURE AND SENDING ---
+        function captureAndAnalyze() {
+            if (isAnalyzing || video.readyState < 2) return;
+
+            isAnalyzing = true;
+            statusBar.textContent = 'ANALYZING...';
+            
+            const w = video.videoWidth;
+            const h = video.videoHeight;
+            canvas.width = w;
+            canvas.height = h;
+
+            context.drawImage(video, 0, 0, w, h);
+
+            canvas.toBlob((blob) => {
+                const formData = new FormData();
+                formData.append('image', blob, 'frame.jpg');
+                sendToBackend(formData);
+            }, 'image/jpeg', 0.8);
+        }
+
+        // --- 3. BACKEND COMMUNICATION AND SPEECH ---
+        async function sendToBackend(formData) {
+            try {
+                const response = await fetch('/detect', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                let speechText = data.speech_text || "Analysis complete.";
+                
+                // 3a. Update Visual Status (Passing Test Animation)
+                videoContainer.classList.remove('analyzing', 'error', 'validated');
+
+                if (response.ok && data.denomination !== 'null' && data.full_validation) {
+                    // Success (Passing Test)
+                    finalResult.textContent = `✅ VALIDATED: ${speechText.toUpperCase()}`;
+                    videoContainer.classList.add('validated');
+                } else if (response.ok && data.denomination !== 'null') {
+                    // Partial Success/Detected but low confidence
+                    finalResult.textContent = `🟡 DETECTED: ${speechText.toUpperCase()} (Validation LOW)`;
+                    videoContainer.classList.add('analyzing');
+                } else {
+                    // Fail / Error / Not clear
+                    finalResult.textContent = `❌ FAILURE: ${speechText}`;
+                    videoContainer.classList.add('error');
+                }
+                
+                statusBar.textContent = speechText;
+
+                // 3b. Text-to-Speech (TTS) Logic
+                // Only speak if the text has changed to avoid repeating the same value.
+                if (speechText && speechText !== lastSpeechText) {
+                    speak(speechText);
+                    lastSpeechText = speechText;
+                }
+
+            } catch (error) {
+                console.error('Detection fetch error:', error);
+                finalResult.textContent = `❌ CONNECTION ERROR: Check Flask server.`;
+                statusBar.textContent = 'CONNECTION ERROR';
+                videoContainer.classList.remove('analyzing');
+                videoContainer.classList.add('error');
+            } finally {
+                isAnalyzing = false;
+            }
+        }
+
+        // --- 4. TTS UTILITY (Standard Browser Feature) ---
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                if (speechSynthesis.speaking) {
+                    speechSynthesis.cancel();
+                }
+                const utterance = new SpeechSynthesisUtterance(text);
+                speechSynthesis.speak(utterance);
+            }
+        }
+        
+        // --- START THE PROCESS ---
+        video.addEventListener('loadedmetadata', () => {
+            // Start capturing frames at a regular interval once the video stream is ready
+            setInterval(captureAndAnalyze, CAPTURE_INTERVAL_MS);
+        });
+
+        // Initialize camera on page load
+        setupCamera();
+
+    </script>
+</body>
+</html>
