@@ -1,13 +1,7 @@
-# requirements.txt
-
-# Web framework for the application
-Flask==3.0.3 
-
-# Google's library for interacting with the Gemini API
-google-genai==0.16.0 
-
-# Python Imaging Library (Pillow) for image handling
-Pillow==10.3.0 
-
-# Library to securely load environment variables from the .env file
-python-dotenv==1.0.1
+Flask==3.0.3
+gunicorn==21.2.0
+numpy==1.26.0
+opencv-python==4.8.1.78
+easyocr==1.6.0
+python-dotenv==1.0.0
+google-genai==1.39.1
