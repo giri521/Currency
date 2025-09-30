@@ -1,205 +1,444 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Perplexity Auto Currency Detector</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 10px; background-color: #f4f7f9; }
-        .container { max-width: 700px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
-        h1 { text-align: center; color: #1e88e5; margin-bottom: 5px;}
-        .video-container { 
-            position: relative; 
-            width: 100%; 
-            max-width: 640px; 
-            margin: 10px auto;
-            border: 4px solid var(--status-color, #aaa);
-            border-radius: 12px;
-            overflow: hidden;
-            transition: border-color 0.5s ease-in-out;
-        }
-        video { width: 100%; display: block; }
-        canvas { display: none; }
-        
-        /* The Animated Status Display */
-        #status-bar {
-            height: 40px;
-            text-align: center;
-            line-height: 40px;
-            font-size: 1.2em;
-            font-weight: bold;
-            color: white;
-            background-color: var(--status-color, #333);
-            transition: background-color 0.5s ease-in-out;
-            border-radius: 0 0 8px 8px;
-            margin: -4px; /* Adjust to cover border */
-        }
-        
-        .result-text {
-            text-align: center;
-            padding: 15px;
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #333;
-            min-height: 50px;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Currency Identifier 💵</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Mobile-First Reset and Base Styles */
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+    }
+    
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px 10px;
+      position: relative;
+      overflow-x: hidden;
+    }
 
-        /* Animation Keyframes (Pulsing Green for Pass) */
-        @keyframes pulse-success {
-            0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
-        }
+    /* Animated background elements */
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%);
+      z-index: -1;
+    }
 
-        .video-container.validated {
-            border-color: #28a745; /* Green */
-            animation: pulse-success 1.5s infinite;
-        }
-        .video-container.analyzing {
-             border-color: #ffc107; /* Yellow */
-        }
-        .video-container.error {
-             border-color: #dc3545; /* Red */
-        }
+    /* Header Styling */
+    .app-header {
+      text-align: center;
+      margin-bottom: 25px;
+      width: 100%;
+    }
 
-    </style>
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 8px;
+      text-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      letter-spacing: 1px;
+      position: relative;
+      display: inline-block;
+    }
+
+    h1::after {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 4px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+      border-radius: 2px;
+    }
+
+    p.description {
+      font-size: 0.95rem;
+      margin-bottom: 20px;
+      color: rgba(255, 255, 255, 0.85);
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+      line-height: 1.5;
+    }
+
+    /* Main content container */
+    .main-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    /* Camera Container & Video */
+    .camera-container {
+      width: 95%;
+      max-width: 400px;
+      aspect-ratio: 4/3;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 
+        0 15px 35px rgba(0,0,0,0.5),
+        inset 0 0 15px rgba(255,255,255,0.1);
+      margin-bottom: 20px;
+      transition: all 0.4s ease;
+      position: relative;
+      border: 2px solid rgba(255,255,255,0.1);
+    }
+    
+    .camera-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 30%);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .camera-container:active {
+      transform: scale(0.98);
+      box-shadow: 
+        0 8px 20px rgba(0,0,0,0.4),
+        inset 0 0 10px rgba(255,255,255,0.1);
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: brightness(1.05) contrast(1.05);
+      transition: filter 0.3s ease;
+    }
+    
+    /* Control Button */
+    .controls {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 25px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    #flip-button {
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #6a11cb;
+      background-color: #fff;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    #flip-button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 25px rgba(0,0,0,0.4);
+    }
+    
+    #flip-button:active {
+      transform: translateY(1px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+
+    /* Result Display */
+    #result {
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 1.4rem;
+      font-weight: 700;
+      padding: 20px;
+      width: 95%;
+      max-width: 400px;
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      transition: all 0.5s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #result::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      transition: left 0.7s ease;
+    }
+
+    #result:hover::before {
+      left: 100%;
+    }
+
+    #result.correct {
+      background: rgba(76, 217, 100, 0.25);
+      color: #4cd964;
+      border-color: rgba(76, 217, 100, 0.4);
+      box-shadow: 0 10px 25px rgba(76, 217, 100, 0.2);
+      transform: scale(1.02);
+    }
+
+    #result.warning {
+      background: rgba(255, 59, 48, 0.25);
+      color: #ff3b30;
+      border-color: rgba(255, 59, 48, 0.4);
+      box-shadow: 0 10px 25px rgba(255, 59, 48, 0.2);
+      transform: scale(1.02);
+    }
+
+    /* Status indicator */
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 15px;
+      font-size: 0.85rem;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: #4cd964;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    /* Footer */
+    .app-footer {
+      margin-top: auto;
+      padding: 20px 0;
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.6);
+      text-align: center;
+    }
+
+    /* Responsive adjustment */
+    @media (min-width: 600px) {
+      h1 { font-size: 2.8rem; }
+      p.description { font-size: 1.1rem; }
+      .camera-container { max-width: 500px; }
+      #result { 
+        font-size: 1.6rem; 
+        max-width: 500px;
+        min-height: 100px;
+      }
+      .controls {
+        gap: 20px;
+      }
+    }
+
+    /* Loading animation */
+    @keyframes shimmer {
+      0% { background-position: -468px 0; }
+      100% { background-position: 468px 0; }
+    }
+
+    .loading {
+      animation-duration: 1.5s;
+      animation-fill-mode: forwards;
+      animation-iteration-count: infinite;
+      animation-name: shimmer;
+      animation-timing-function: linear;
+      background: linear-gradient(to right, rgba(255,255,255,0.1) 8%, rgba(255,255,255,0.2) 18%, rgba(255,255,255,0.1) 33%);
+      background-size: 800px 104px;
+      position: relative;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>💵 Perplexity Note Detector (Paid API)</h1>
-        <p style="text-align: center; font-style: italic; color: #e90000; font-weight: bold;">⚠️ WARNING: This uses the PAID Perplexity API. You will be charged per request.</p>
+  <div class="app-header">
+    <h1>Currency Identifier 💵</h1>
+    <p class="description">Position your currency note clearly in the camera view. The app will automatically detect and identify it.</p>
+  </div>
 
-        <div id="videoContainer" class="video-container analyzing">
-            <video id="video" autoplay playsinline></video>
-            <div id="status-bar">Awaiting camera permission...</div>
-        </div>
-
-        <canvas id="canvas"></canvas>
-
-        <div class="result-text">
-            <span id="finalResult">Point the camera at an Indian banknote to start.</span>
-        </div>
+  <div class="main-container">
+    <div class="controls">
+      <button id="flip-button">🔄 Switch Camera</button>
     </div>
 
-    <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const context = canvas.getContext('2d');
-        const statusBar = document.getElementById('status-bar');
-        const finalResult = document.getElementById('finalResult');
-        const videoContainer = document.getElementById('videoContainer');
-        
-        let isAnalyzing = false;
-        let lastSpeechText = ""; // Track the last spoken text
-        const CAPTURE_INTERVAL_MS = 1500; // Analyze frame every 1.5 seconds
+    <div class="camera-container">
+      <video id="camera" autoplay playsinline></video>
+    </div>
 
-        // --- 1. CAMERA SETUP ---
-        async function setupCamera() {
+    <p id="result">Initializing camera...</p>
+    
+    <div class="status-indicator">
+      <div class="status-dot"></div>
+      <span>Detection active</span>
+    </div>
+  </div>
+
+  <div class="app-footer">
+    <p>Hold currency steadily for best results</p>
+  </div>
+
+  <script>
+    const video = document.getElementById('camera');
+    const resultEl = document.getElementById('result');
+    const flipButton = document.getElementById('flip-button');
+    let currentStream;
+    let lastMessage = "";
+
+    // Function to stop the current video stream
+    function stopStream() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+    }
+
+    // Function to start the camera, prioritizing the 'environment' (back) camera
+    async function startCamera(facingMode = 'environment') {
+      stopStream();
+      resultEl.textContent = "Loading camera...";
+      resultEl.classList.add("loading");
+
+      try {
+        const constraints = {
+            video: {
+                facingMode: { exact: facingMode }
+            }
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        currentStream = stream;
+        video.srcObject = stream;
+        resultEl.textContent = "Ready for detection";
+        resultEl.classList.remove("loading", "correct", "warning");
+
+      } catch (err) {
+        console.warn(`Exact facingMode '${facingMode}' failed. Falling back to any available camera.`);
+        
+        if (facingMode === 'environment') {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' } 
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                currentStream = stream;
                 video.srcObject = stream;
-                statusBar.textContent = 'Camera active. Analyzing...';
-                videoContainer.classList.add('analyzing');
-            } catch (err) {
-                console.error("Could not access camera: ", err);
-                statusBar.textContent = 'ERROR: Could not access camera.';
-                videoContainer.classList.remove('analyzing');
-                videoContainer.classList.add('error');
+                resultEl.textContent = "Ready for detection";
+                resultEl.classList.remove("loading", "correct", "warning");
+            } catch (fallbackErr) {
+                resultEl.textContent = "Camera access error";
+                resultEl.className = "warning";
+                console.error("Camera access error:", fallbackErr);
             }
+        } else {
+             resultEl.textContent = "Camera access error";
+             resultEl.className = "warning";
+             console.error("Camera access error:", err);
         }
+      }
+    }
 
-        // --- 2. IMAGE CAPTURE AND SENDING ---
-        function captureAndAnalyze() {
-            if (isAnalyzing || video.readyState < 2) return;
+    // Flip camera handler
+    flipButton.addEventListener('click', () => {
+      if (!video.srcObject) return;
+      try {
+        const currentFacingMode = video.srcObject.getVideoTracks()[0].getSettings().facingMode;
+        const newFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+        startCamera(newFacingMode);
+      } catch (e) {
+        console.error("Error determining current camera mode:", e);
+        startCamera(video.srcObject.getVideoTracks()[0].getSettings().facingMode === 'user' ? 'environment' : 'user');
+      }
+    });
 
-            isAnalyzing = true;
-            statusBar.textContent = 'ANALYZING...';
-            
-            const w = video.videoWidth;
-            const h = video.videoHeight;
-            canvas.width = w;
-            canvas.height = h;
+    // Initial camera start
+    startCamera('environment');
 
-            context.drawImage(video, 0, 0, w, h);
+    function captureAndPredict() {
+      if (!video.srcObject || video.videoWidth === 0 || video.videoHeight === 0) return; 
 
-            canvas.toBlob((blob) => {
-                const formData = new FormData();
-                formData.append('image', blob, 'frame.jpg');
-                sendToBackend(formData);
-            }, 'image/jpeg', 0.8);
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth; 
+      canvas.height = video.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = canvas.toDataURL('image/jpeg', 0.8); 
+
+      fetch('/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageData })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          resultEl.textContent = "Detection error";
+          resultEl.className = "warning";
+        } else {
+          const label = data.label.replace("Background","").trim();
+          const confidence = data.confidence;
+          let message = "";
+
+          if (confidence >= 90 && label !== "") {
+            message = "✅ Identified: " + label;
+            resultEl.className = "correct";
+          } else {
+            message = "❌ Adjust position for better detection";
+            resultEl.className = "warning";
+          }
+
+          resultEl.textContent = message;
+
+          // Speak only if message changed
+          if (message !== lastMessage) {
+            const msg = new SpeechSynthesisUtterance(message);
+            msg.rate = 1.0; 
+            window.speechSynthesis.speak(msg);
+            lastMessage = message;
+          }
         }
+      })
+      .catch(error => {
+        resultEl.textContent = "Connection issue";
+        resultEl.className = "warning";
+        console.error("Fetch Error:", error);
+      });
+    }
 
-        // --- 3. BACKEND COMMUNICATION AND SPEECH ---
-        async function sendToBackend(formData) {
-            try {
-                const response = await fetch('/detect', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const data = await response.json();
-                
-                let speechText = data.speech_text || "Analysis complete.";
-                
-                // 3a. Update Visual Status (Passing Test Animation)
-                videoContainer.classList.remove('analyzing', 'error', 'validated');
-
-                if (response.ok && data.denomination !== 'null' && data.full_validation) {
-                    // Success (Passing Test)
-                    finalResult.textContent = `✅ VALIDATED: ${speechText.toUpperCase()}`;
-                    videoContainer.classList.add('validated');
-                } else if (response.ok && data.denomination !== 'null') {
-                    // Partial Success/Detected but low confidence
-                    finalResult.textContent = `🟡 DETECTED: ${speechText.toUpperCase()} (Validation LOW)`;
-                    videoContainer.classList.add('analyzing');
-                } else {
-                    // Fail / Error / Not clear
-                    finalResult.textContent = `❌ FAILURE: ${speechText}`;
-                    videoContainer.classList.add('error');
-                }
-                
-                statusBar.textContent = speechText;
-
-                // 3b. Text-to-Speech (TTS) Logic
-                // Only speak if the text has changed to avoid repeating the same value.
-                if (speechText && speechText !== lastSpeechText) {
-                    speak(speechText);
-                    lastSpeechText = speechText;
-                }
-
-            } catch (error) {
-                console.error('Detection fetch error:', error);
-                finalResult.textContent = `❌ CONNECTION ERROR: Check Flask server.`;
-                statusBar.textContent = 'CONNECTION ERROR';
-                videoContainer.classList.remove('analyzing');
-                videoContainer.classList.add('error');
-            } finally {
-                isAnalyzing = false;
-            }
-        }
-
-        // --- 4. TTS UTILITY (Standard Browser Feature) ---
-        function speak(text) {
-            if ('speechSynthesis' in window) {
-                if (speechSynthesis.speaking) {
-                    speechSynthesis.cancel();
-                }
-                const utterance = new SpeechSynthesisUtterance(text);
-                speechSynthesis.speak(utterance);
-            }
-        }
-        
-        // --- START THE PROCESS ---
-        video.addEventListener('loadedmetadata', () => {
-            // Start capturing frames at a regular interval once the video stream is ready
-            setInterval(captureAndAnalyze, CAPTURE_INTERVAL_MS);
-        });
-
-        // Initialize camera on page load
-        setupCamera();
-
-    </script>
+    // Auto-capture every 2 seconds
+    setInterval(captureAndPredict, 2000);
+  </script>
 </body>
 </html>
