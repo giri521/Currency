@@ -1,31 +1,26 @@
-# app.py (Revised for Perplexity API with Animated Status Logic)
+# app.py (Full Version for Perplexity API + Mobile-Friendly Frontend)
 
 import os
 import json
 import base64
 from flask import Flask, render_template, request, jsonify
-from dotenv import load_dotenv 
+from flask_cors import CORS
+from dotenv import load_dotenv
 from PIL import Image
 import io
+import requests
 
-# Use the 'requests' library directly since the Perplexity Python SDK
-# is not always available or required for simple API calls.
-import requests 
-
-# --- LOAD ENVIRONMENT VARIABLES ---
+# --- Load Environment Variables ---
 load_dotenv()
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
 app = Flask(__name__)
+CORS(app)  # Allow cross-origin requests for mobile/web frontend
 
-# --- API Configuration ---
+# --- Perplexity API Configuration ---
 PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
-# Use a model known to support multimodal (image) input.
-# NOTE: This model is NOT free. Billing is required.
-MODEL_NAME = "sonar-pro" 
+MODEL_NAME = "sonar-pro"
 
-# --- SYSTEM PROMPT (Optimized for Perplexity) ---
-# We still force a JSON output to cleanly extract the required data fields.
 SYSTEM_PROMPT = """
 You are a highly accurate currency note identifier. You are given an image of an Indian banknote (₹10, ₹20, ₹50, ₹100, ₹200, ₹500). The note can be front or back.
 
@@ -44,6 +39,7 @@ Output ONLY a single, strictly valid JSON object. DO NOT include any introductor
 If detection fails, set 'denomination' to "null" and provide the appropriate 'speech_text'.
 """
 
+# --- Routes ---
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -51,73 +47,56 @@ def index():
 @app.route('/detect', methods=['POST'])
 def detect_currency():
     if not PERPLEXITY_API_KEY:
-        return jsonify({"error": "Perplexity API Key not configured in .env.", "speech_text": "Error: API not configured."}), 500
+        return jsonify({"error": "Perplexity API Key not configured in .env.", 
+                        "speech_text": "Error: API key not configured."}), 500
 
     if 'image' not in request.files:
-        return jsonify({"error": "No image file provided.", "speech_text": "Error: No image received."}), 400
+        return jsonify({"error": "No image provided.", 
+                        "speech_text": "Error: No image received."}), 400
 
     image_file = request.files['image']
 
     try:
-        # 1. Image Preprocessing: PIL to Base64
+        # --- Convert image to Base64 ---
         img = Image.open(io.BytesIO(image_file.read()))
-        # Perplexity requires the image as a Base64 Data URI within the content payload
         buffer = io.BytesIO()
         img.save(buffer, format="JPEG")
         img_str = base64.b64encode(buffer.getvalue()).decode()
         data_uri = f"data:image/jpeg;base64,{img_str}"
 
-        # 2. Perplexity API Payload
+        # --- Prepare Perplexity API Payload ---
         payload = {
             "model": MODEL_NAME,
             "messages": [
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Analyze this Indian banknote image and return the JSON structure exactly as requested in the system prompt."
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": data_uri}
-                        }
-                    ]
-                }
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": [
+                    {"type": "text", "text": "Analyze this Indian banknote image and return the JSON exactly as requested in the system prompt."},
+                    {"type": "image_url", "image_url": {"url": data_uri}}
+                ]}
             ]
         }
-        
+
         headers = {
             "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
 
-        # 3. API Call
+        # --- Call Perplexity API ---
         response = requests.post(PERPLEXITY_API_URL, headers=headers, json=payload)
-        response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+        response.raise_for_status()
 
-        # 4. Process Response
-        response_data = response.json()
-        raw_text = response_data['choices'][0]['message']['content'].strip()
-
-        # The model is forced to return JSON, we attempt to parse it
+        # --- Parse Perplexity Response ---
+        raw_text = response.json()['choices'][0]['message']['content'].strip()
         try:
-            # Clean up potential markdown formatting (```json...)
-            json_text = raw_text.replace('```json', '').replace('```', '').strip()
+            json_text = raw_text.replace('```json','').replace('```','').strip()
             result_json = json.loads(json_text)
-
-            # Ensure 'full_validation' is boolean, as PPLX might return strings
-            result_json['full_validation'] = str(result_json.get('full_validation', 'false')).lower() == 'true'
-
+            # Ensure full_validation is boolean
+            result_json['full_validation'] = str(result_json.get('full_validation','false')).lower() == 'true'
             return jsonify(result_json), 200
         except json.JSONDecodeError:
             return jsonify({
-                "error": "Perplexity returned unparsable JSON.",
+                "error": "Perplexity returned invalid JSON.",
                 "raw_response": raw_text,
                 "speech_text": "Analysis failed. Server returned unstructured response."
             }), 500
@@ -130,12 +109,13 @@ def detect_currency():
             speech_err = "Rate limit exceeded. Too many requests."
         else:
             speech_err = f"Perplexity API Error: {status_code}"
-            
         return jsonify({"error": str(e), "speech_text": speech_err}), status_code
-        
-    except Exception as e:
-        return jsonify({"error": f"Server processing error: {e}", "speech_text": "Internal error."}), 500
 
+    except Exception as e:
+        return jsonify({"error": f"Server processing error: {e}", "speech_text": "Internal server error."}), 500
+
+
+# --- Main ---
 if __name__ == '__main__':
-    print("Starting Flask server for Perplexity API processing...")
+    print("Starting Flask server for Perplexity API...")
     app.run(host='0.0.0.0', port=5000, debug=True)
