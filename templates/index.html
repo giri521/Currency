@@ -125,101 +125,112 @@
             <span id="finalResult">Point the camera at an Indian banknote to start.</span>
         </div>
     </div>
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    const statusBar = document.getElementById('status-bar');
+    const finalResult = document.getElementById('finalResult');
+    const videoContainer = document.getElementById('videoContainer');
 
-    <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const context = canvas.getContext('2d');
-        const statusBar = document.getElementById('status-bar');
-        const finalResult = document.getElementById('finalResult');
-        const videoContainer = document.getElementById('videoContainer');
+    const BACKEND_URL = "/detect";
+    let isAnalyzing = false;
+    let lastSpeechText = "";
+    const CAPTURE_INTERVAL_MS = 1500;
 
-        const BACKEND_URL = "/detect"; // Flask endpoint
-        let isAnalyzing = false;
-        let lastSpeechText = "";
-        const CAPTURE_INTERVAL_MS = 1500;
+    async function setupCamera() {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("Camera API not supported.");
+            }
 
-        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' },
+                audio: false
+            });
+
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.playsInline = true;
+            video.muted = true;
+
+            statusBar.textContent = 'Camera active. Analyzing...';
+            videoContainer.classList.add('analyzing');
+
+            video.addEventListener('loadedmetadata', () => {
+                if (!video.intervalId) {
+                    video.intervalId = setInterval(captureAndAnalyze, CAPTURE_INTERVAL_MS);
+                }
+            });
+        } catch (err) {
+            console.error(err);
+            statusBar.textContent = 'ERROR: Could not access camera.';
+            videoContainer.classList.remove('analyzing');
+            videoContainer.classList.add('error');
+            finalResult.textContent = 'Camera permission denied or not supported in this app.';
+        }
+    }
+
+    function captureAndAnalyze() {
+        if (isAnalyzing || video.readyState < 2) return;
+        isAnalyzing = true;
+        statusBar.textContent = 'ANALYZING...';
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(async (blob) => {
+            const formData = new FormData();
+            formData.append('image', blob, 'frame.jpg');
+
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                video.srcObject = stream;
-                statusBar.textContent = 'Camera active. Analyzing...';
-                videoContainer.classList.add('analyzing');
+                const response = await fetch(BACKEND_URL, { method: 'POST', body: formData });
+                const data = await response.json();
+
+                let speechText = data.speech_text || "Analysis complete.";
+
+                videoContainer.classList.remove('analyzing','error','validated');
+
+                if (data.full_validation && data.denomination !== "null") {
+                    finalResult.textContent = `✅ VALIDATED: ${speechText.toUpperCase()}`;
+                    videoContainer.classList.add('validated');
+                } else if (data.denomination !== "null") {
+                    finalResult.textContent = `🟡 DETECTED: ${speechText.toUpperCase()} (Review Needed)`;
+                    videoContainer.classList.add('analyzing');
+                } else {
+                    finalResult.textContent = `❌ NOT DETECTED: ${speechText}`;
+                    videoContainer.classList.add('error');
+                }
+
+                statusBar.textContent = speechText;
+
+                if (speechText && speechText !== lastSpeechText) {
+                    speak(speechText);
+                    lastSpeechText = speechText;
+                }
+
             } catch (err) {
                 console.error(err);
-                statusBar.textContent = 'ERROR: Could not access camera.';
+                finalResult.textContent = "❌ CONNECTION ERROR: Ensure the backend server is running.";
+                statusBar.textContent = "CONNECTION ERROR";
                 videoContainer.classList.remove('analyzing');
                 videoContainer.classList.add('error');
+            } finally {
+                isAnalyzing = false;
             }
+        }, 'image/jpeg', 0.8);
+    }
+
+    function speak(text) {
+        if ('speechSynthesis' in window) {
+            if (speechSynthesis.speaking) speechSynthesis.cancel();
+            speechSynthesis.speak(new SpeechSynthesisUtterance(text));
         }
+    }
 
-        function captureAndAnalyze() {
-            if (isAnalyzing || video.readyState < 2) return;
-            isAnalyzing = true;
-            statusBar.textContent = 'ANALYZING...';
+    setupCamera();
+</script>
 
-            const w = video.videoWidth;
-            const h = video.videoHeight;
-            canvas.width = w;
-            canvas.height = h;
-            context.drawImage(video, 0, 0, w, h);
-
-            canvas.toBlob(async (blob) => {
-                const formData = new FormData();
-                formData.append('image', blob, 'frame.jpg');
-
-                try {
-                    const response = await fetch(BACKEND_URL, { method: 'POST', body: formData });
-                    const data = await response.json();
-
-                    let speechText = data.speech_text || "Analysis complete.";
-
-                    videoContainer.classList.remove('analyzing','error','validated');
-
-                    if (data.full_validation && data.denomination !== "null") {
-                        finalResult.textContent = `✅ VALIDATED: ${speechText.toUpperCase()}`;
-                        videoContainer.classList.add('validated');
-                    } else if (data.denomination !== "null") {
-                        finalResult.textContent = `🟡 DETECTED: ${speechText.toUpperCase()} (Review Needed)`;
-                        videoContainer.classList.add('analyzing');
-                    } else {
-                        finalResult.textContent = `❌ NOT DETECTED: ${speechText}`;
-                        videoContainer.classList.add('error');
-                    }
-
-                    statusBar.textContent = speechText;
-
-                    if (speechText && speechText !== lastSpeechText) {
-                        speak(speechText);
-                        lastSpeechText = speechText;
-                    }
-
-                } catch (err) {
-                    console.error(err);
-                    finalResult.textContent = "❌ CONNECTION ERROR: Ensure the backend server is running.";
-                    statusBar.textContent = "CONNECTION ERROR";
-                    videoContainer.classList.remove('analyzing');
-                    videoContainer.classList.add('error');
-                } finally {
-                    isAnalyzing = false;
-                }
-            }, 'image/jpeg', 0.8);
-        }
-
-        function speak(text) {
-            if ('speechSynthesis' in window) {
-                if (speechSynthesis.speaking) speechSynthesis.cancel();
-                speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-            }
-        }
-
-        video.addEventListener('loadedmetadata', () => {
-            if (!video.intervalId) {
-                video.intervalId = setInterval(captureAndAnalyze, CAPTURE_INTERVAL_MS);
-            }
-        });
-
-        setupCamera();
-    </script>
 </body>
 </html>
