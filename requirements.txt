@@ -1,3 +1,4 @@
+flask-cors
 Flask
 gunicorn
 numpy
@@ -6,4 +7,5 @@ easyocr
 python-dotenv
 requests
 Pillow
+
 
