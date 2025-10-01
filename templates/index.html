@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sleek NoteSense Detector</title>
+    <title>💵 NoteSense Live Detector</title>
     <style>
-        /* New Sleek Theme: Dark Background, High-Contrast Text */
         :root {
-            --primary-color: #007bff; /* Blue */
-            --success-color: #28a745; /* Green */
-            --warning-color: #ffc107; /* Yellow */
-            --error-color: #dc3545; /* Red */
+            --primary-color: #007bff;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --error-color: #dc3545;
             --background-dark: #1e1e1e;
             --surface-dark: #2d2d2d;
             --text-light: #f4f4f4;
@@ -19,8 +18,7 @@
         }
 
         body {
-            font-family: 'Roboto', 'Arial', sans-serif;
-            padding: 20px;
+            font-family: 'Roboto', sans-serif;
             background-color: var(--background-dark);
             color: var(--text-light);
             display: flex;
@@ -28,8 +26,9 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
+            padding: 20px;
         }
-        
+
         .container {
             max-width: 600px;
             width: 100%;
@@ -37,7 +36,6 @@
             padding: 30px;
             border-radius: 16px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-            transition: box-shadow 0.3s ease;
         }
 
         h1 {
@@ -45,11 +43,7 @@
             color: var(--primary-color);
             margin-bottom: 20px;
             font-size: 2em;
-            letter-spacing: 1px;
         }
-        
-        /* Removed warning paragraph as requested */
-        /* .warning-message { display: none; } */
 
         .video-container { 
             position: relative; 
@@ -60,19 +54,18 @@
             border-radius: 12px;
             overflow: hidden;
             transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
-            aspect-ratio: 16 / 9; /* Maintain a common video aspect ratio */
+            aspect-ratio: 16 / 9;
         }
         
         video { 
             width: 100%; 
             height: 100%;
-            object-fit: cover; /* Ensures video fills the container */
+            object-fit: cover;
             display: block; 
         }
-        
+
         canvas { display: none; }
-        
-        /* The Animated Status Display */
+
         #status-bar {
             height: 40px;
             text-align: center;
@@ -88,7 +81,7 @@
             right: 0;
             z-index: 10;
         }
-        
+
         .result-text {
             text-align: center;
             padding: 20px 0 5px;
@@ -98,14 +91,12 @@
             min-height: 50px;
         }
 
-        /* Animation Keyframes (Pulsing Green for Success) */
         @keyframes pulse-success {
             0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
             70% { box-shadow: 0 0 0 15px rgba(40, 167, 69, 0); }
             100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
         }
 
-        /* Status-specific styles */
         .video-container.validated {
             --status-color: var(--success-color);
             animation: pulse-success 1.5s infinite;
@@ -142,126 +133,93 @@
         const statusBar = document.getElementById('status-bar');
         const finalResult = document.getElementById('finalResult');
         const videoContainer = document.getElementById('videoContainer');
-        
-        let isAnalyzing = false;
-        let lastSpeechText = ""; // Track the last spoken text
-        const CAPTURE_INTERVAL_MS = 1500; // Analyze frame every 1.5 seconds
 
-        // --- 1. CAMERA SETUP ---
+        const BACKEND_URL = "/detect"; // Flask endpoint
+        let isAnalyzing = false;
+        let lastSpeechText = "";
+        const CAPTURE_INTERVAL_MS = 1500;
+
         async function setupCamera() {
             try {
-                // Request camera with 'environment' facing mode for back camera on mobile
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' } 
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 video.srcObject = stream;
                 statusBar.textContent = 'Camera active. Analyzing...';
                 videoContainer.classList.add('analyzing');
             } catch (err) {
-                console.error("Could not access camera: ", err);
+                console.error(err);
                 statusBar.textContent = 'ERROR: Could not access camera.';
                 videoContainer.classList.remove('analyzing');
                 videoContainer.classList.add('error');
             }
         }
 
-        // --- 2. IMAGE CAPTURE AND SENDING ---
         function captureAndAnalyze() {
             if (isAnalyzing || video.readyState < 2) return;
-
             isAnalyzing = true;
             statusBar.textContent = 'ANALYZING...';
-            
-            // Set canvas size to video frame size
+
             const w = video.videoWidth;
             const h = video.videoHeight;
             canvas.width = w;
             canvas.height = h;
-
-            // Draw the current video frame onto the canvas
             context.drawImage(video, 0, 0, w, h);
 
-            // Convert canvas image to Blob for sending
-            canvas.toBlob((blob) => {
+            canvas.toBlob(async (blob) => {
                 const formData = new FormData();
                 formData.append('image', blob, 'frame.jpg');
-                // The URL is kept as '/detect' which assumes a Flask server is running locally
-                sendToBackend(formData); 
+
+                try {
+                    const response = await fetch(BACKEND_URL, { method: 'POST', body: formData });
+                    const data = await response.json();
+
+                    let speechText = data.speech_text || "Analysis complete.";
+
+                    videoContainer.classList.remove('analyzing','error','validated');
+
+                    if (data.full_validation && data.denomination !== "null") {
+                        finalResult.textContent = `✅ VALIDATED: ${speechText.toUpperCase()}`;
+                        videoContainer.classList.add('validated');
+                    } else if (data.denomination !== "null") {
+                        finalResult.textContent = `🟡 DETECTED: ${speechText.toUpperCase()} (Review Needed)`;
+                        videoContainer.classList.add('analyzing');
+                    } else {
+                        finalResult.textContent = `❌ NOT DETECTED: ${speechText}`;
+                        videoContainer.classList.add('error');
+                    }
+
+                    statusBar.textContent = speechText;
+
+                    if (speechText && speechText !== lastSpeechText) {
+                        speak(speechText);
+                        lastSpeechText = speechText;
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    finalResult.textContent = "❌ CONNECTION ERROR: Ensure the backend server is running.";
+                    statusBar.textContent = "CONNECTION ERROR";
+                    videoContainer.classList.remove('analyzing');
+                    videoContainer.classList.add('error');
+                } finally {
+                    isAnalyzing = false;
+                }
             }, 'image/jpeg', 0.8);
         }
 
-        // --- 3. BACKEND COMMUNICATION AND SPEECH ---
-        async function sendToBackend(formData) {
-            try {
-                const response = await fetch('/detect', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const data = await response.json();
-                
-                let speechText = data.speech_text || "Analysis complete.";
-                
-                // 3a. Update Visual Status
-                videoContainer.classList.remove('analyzing', 'error', 'validated');
-
-                if (response.ok && data.denomination !== 'null' && data.full_validation) {
-                    // Success (Validated)
-                    finalResult.textContent = `✅ VALIDATED: ${speechText.toUpperCase()}`;
-                    videoContainer.classList.add('validated');
-                } else if (response.ok && data.denomination !== 'null') {
-                    // Partial Success/Detected but low confidence/Not fully validated
-                    finalResult.textContent = `🟡 DETECTED: ${speechText.toUpperCase()} (Review Needed)`;
-                    videoContainer.classList.add('analyzing');
-                } else {
-                    // Fail / Error / Not clear
-                    finalResult.textContent = `❌ NOT DETECTED: ${speechText}`;
-                    videoContainer.classList.add('error');
-                }
-                
-                statusBar.textContent = speechText;
-
-                // 3b. Text-to-Speech (TTS) Logic
-                // Only speak if the text has changed
-                if (speechText && speechText !== lastSpeechText) {
-                    speak(speechText);
-                    lastSpeechText = speechText;
-                }
-
-            } catch (error) {
-                console.error('Detection fetch error:', error);
-                finalResult.textContent = `❌ CONNECTION ERROR: Ensure the backend server is running.`;
-                statusBar.textContent = 'CONNECTION ERROR';
-                videoContainer.classList.remove('analyzing');
-                videoContainer.classList.add('error');
-            } finally {
-                isAnalyzing = false;
-            }
-        }
-
-        // --- 4. TTS UTILITY (Standard Browser Feature) ---
         function speak(text) {
             if ('speechSynthesis' in window) {
-                if (speechSynthesis.speaking) {
-                    speechSynthesis.cancel();
-                }
-                const utterance = new SpeechSynthesisUtterance(text);
-                speechSynthesis.speak(utterance);
+                if (speechSynthesis.speaking) speechSynthesis.cancel();
+                speechSynthesis.speak(new SpeechSynthesisUtterance(text));
             }
         }
-        
-        // --- START THE PROCESS ---
+
         video.addEventListener('loadedmetadata', () => {
-            // Start capturing frames at a regular interval once the video stream is ready
-            // The interval is only created once to prevent multiple intervals running
             if (!video.intervalId) {
                 video.intervalId = setInterval(captureAndAnalyze, CAPTURE_INTERVAL_MS);
             }
         });
 
-        // Initialize camera on page load
         setupCamera();
-
     </script>
 </body>
 </html>
